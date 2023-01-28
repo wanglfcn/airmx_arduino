@@ -16,6 +16,7 @@ int enable_fan = 1;
 int gate_is_open = 0;
 unsigned long gate_btn_last_ts = 0;
 unsigned long gate_last_open_ts = 0;
+unsigned long gate_last_change_ts = 0;
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(9600);
@@ -35,22 +36,29 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
-  count ++;
+  count++;
   if (count > 0) {
     count = 0;
     int sensorValue = analogRead(FAN_SPEED) * 4;
 
     delay1 = 1200 + sensorValue;
-//    Serial.print("delay: ");
-//    Serial.println(delay1);
+    //    Serial.print("delay: ");
+    //    Serial.println(delay1);
     int waterLowSensor = analogRead(WATER_LOW_SENSOR);
-//    Serial.print("waterLowSensor: ");
-//    Serial.println(waterLowSensor);
+ //        Serial.print("waterLowSensor: ");
+  //      Serial.println(waterLowSensor);
+    int waterFullSensor = analogRead(WATER_FULL_SENSOR);
+  //   Serial.print("waterHightSensor: ");
+  //      Serial.println(waterFullSensor);
     int gateButton = analogRead(GATE_BUTTON);
- //   Serial.print("gateButton: ");
- //   Serial.println(gateButton);
+    //   Serial.print("gateButton: ");
+    //   Serial.println(gateButton);
     unsigned long ts = millis();
+
     if (gateButton < 300) {
+      if (ts - gate_last_change_ts > 1000) {
+        gate_last_change_ts = ts;
+
         if (gate_is_open == 0) {
           // open the door
           gate_last_open_ts = ts;
@@ -62,9 +70,9 @@ void loop() {
           gate_is_open = 0;
           Serial.println("close the gate");
         }
+      }
 
-        delay(200);
-
+      delay(200);
     }
 
     if (gate_is_open > 0 && (ts - gate_last_open_ts > 300000)) {
@@ -74,6 +82,16 @@ void loop() {
       Serial.println("wait too long, close the gate");
     }
 
+    if (waterFullSensor < 300) {
+      // water is full
+      if (gate_is_open >= 1) {
+       // blink
+        delay(250);
+        analogWrite(WATER_LOW_LED, 64);
+        delay(250);
+        analogWrite(WATER_LOW_LED, 0);
+      }
+    }
 
     if (waterLowSensor > 300) {
       //  water is low, turn on water led
@@ -82,10 +100,12 @@ void loop() {
       digitalWrite(UV_LAMP, LOW);
       enable_fan = 0;
     } else {
-      analogWrite(WATER_LOW_LED, 0);
-      digitalWrite(PUMP, HIGH);
-      digitalWrite(UV_LAMP, HIGH);
-      enable_fan = 1;
+      if (enable_fan == 0 && gate_is_open >= 1) {
+        analogWrite(WATER_LOW_LED, 0);
+        digitalWrite(PUMP, HIGH);
+        digitalWrite(UV_LAMP, HIGH);
+        enable_fan = 1;
+      }
     }
   }
 
@@ -97,5 +117,4 @@ void loop() {
     digitalWrite(FAN_OUT, HIGH);
   }
   delayMicroseconds(delay1);
-
 }
